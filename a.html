@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artillery Battleship</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --grid-bg: #16213e;
+            --p1-color: #e94560; /* Red Cannon */
+            --p2-color: #00d2fc; /* Blue Cannon */
+            --cell-empty: rgba(255, 255, 255, 0.05);
+            --text: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        h1, h2, h3 { margin: 10px 0; text-align: center; }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 500px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .active { display: flex; }
+
+        /* Board Styling */
+        .board-container {
+            padding: 15px;
+            border-radius: 10px;
+            background-color: var(--grid-bg);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 3px;
+            width: 320px;
+            height: 320px;
+        }
+
+        .cell {
+            background-color: var(--cell-empty);
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        /* Player Themes */
+        .p1-theme .board-container { border: 2px solid var(--p1-color); box-shadow: 0 0 15px rgba(233, 69, 96, 0.3); }
+        .p2-theme .board-container { border: 2px solid var(--p2-color); box-shadow: 0 0 15px rgba(0, 210, 252, 0.3); }
+        .p1-text { color: var(--p1-color); }
+        .p2-text { color: var(--p2-color); }
+
+        /* Cell States */
+        .cell.ship { background-color: #888; }
+        .cell.hit { background-color: #ffaa00; box-shadow: 0 0 10px #ffaa00; animation: pop 0.3s ease-out; }
+        .cell.miss { background-color: #333; animation: pop 0.3s ease-out; }
+        .cell.miss::after { content: '•'; color: white; }
+        .cell.hit::after { content: '💥'; font-size: 1rem; }
+
+        @keyframes pop {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        /* Buttons */
+        button {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            border: none;
+            padding: 12px 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            color: #111;
+            margin: 10px;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+        
+        #pass-btn { font-size: 1.5rem; padding: 20px 40px; }
+        
+        .status-box {
+            background: rgba(0,0,0,0.3);
+            padding: 10px 20px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="screen active p1-theme">
+        <h1 id="setup-title" class="p1-text">Red Cannon Setup</h1>
+        <p>Hide your boats! Your opponent won't see this.</p>
+        <div class="board-container">
+            <div id="setup-board" class="board"></div>
+        </div>
+        <div>
+            <button onclick="randomizeShips()">Shuffle Fleet</button>
+            <button onclick="confirmSetup()">Confirm Ready</button>
+        </div>
+    </div>
+
+    <!-- PASS DEVICE SCREEN -->
+    <div id="pass-screen" class="screen">
+        <h1 id="pass-title">Switching Sides!</h1>
+        <p>No peeking! Pass the device to the other player.</p>
+        <button id="pass-btn" onclick="startTurn()">I am ready!</button>
+    </div>
+
+    <!-- BATTLE SCREEN -->
+    <div id="battle-screen" class="screen">
+        <h1 id="battle-title">Red Cannon's Turn</h1>
+        <div class="status-box" id="game-status">Awaiting orders...</div>
+        <p>Tap a grid to fire!</p>
+        <div class="board-container" id="battle-board-container">
+            <div id="battle-board" class="board"></div>
+        </div>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="game-over-screen" class="screen">
+        <h1 id="winner-title">Game Over!</h1>
+        <p id="winner-desc"></p>
+        <button onclick="location.reload()">Play Again</button>
+    </div>
+
+    <script>
+        const shipSizes =[5, 4, 3, 3, 2];
+        let grids = { 1: [], 2:[] }; // 0: empty, 1: ship, 2: miss, 3: hit
+        let currentPlayer = 1; // 1 = Red, 2 = Blue
+        let setupPlayer = 1;
+        let isTransitioning = false;
+        
+        // PRANK VARIABLES
+        let tapCount = 0;
+        let tapTimer;
+
+        // Initialize empty grids
+        function createEmptyGrid() {
+            return Array(10).fill(null).map(() => Array(10).fill(0));
+        }
+
+        function init() {
+            grids[1] = createEmptyGrid();
+            grids[2] = createEmptyGrid();
+            randomizeShips();
+        }
+
+        // --- SETUP LOGIC ---
+        function randomizeShips() {
+            grids[setupPlayer] = createEmptyGrid();
+            let grid = grids[setupPlayer];
+            
+            shipSizes.forEach(size => {
+                let placed = false;
+                while (!placed) {
+                    let isHorizontal = Math.random() > 0.5;
+                    let r = Math.floor(Math.random() * 10);
+                    let c = Math.floor(Math.random() * 10);
+                    
+                    if (canPlaceShip(grid, r, c, size, isHorizontal)) {
+                        for (let i = 0; i < size; i++) {
+                            if (isHorizontal) grid[r][c + i] = 1;
+                            else grid[r + i][c] = 1;
+                        }
+                        placed = true;
+                    }
+                }
+            });
+            renderSetupBoard();
+        }
+
+        function canPlaceShip(grid, r, c, size, isHorizontal) {
+            if (isHorizontal && c + size > 10) return false;
+            if (!isHorizontal && r + size > 10) return false;
+            for (let i = 0; i < size; i++) {
+                if (isHorizontal && grid[r][c + i] !== 0) return false;
+                if (!isHorizontal && grid[r + i][c] !== 0) return false;
+            }
+            return true;
+        }
+
+        function renderSetupBoard() {
+            const boardEl = document.getElementById('setup-board');
+            boardEl.innerHTML = '';
+            let grid = grids[setupPlayer];
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 10; c++) {
+                    let cell = document.createElement('div');
+                    cell.className = 'cell' + (grid[r][c] === 1 ? ' ship' : '');
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function confirmSetup() {
+            if (setupPlayer === 1) {
+                setupPlayer = 2;
+                document.getElementById('setup-title').innerText = "Blue Cannon Setup";
+                document.getElementById('setup-title').className = "p2-text";
+                document.getElementById('setup-screen').className = "screen active p2-theme";
+                randomizeShips();
+            } else {
+                showPassScreen();
+            }
+        }
+
+        // --- SCREEN TRANSITIONS ---
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function showPassScreen() {
+            switchScreen('pass-screen');
+            let nextColor = currentPlayer === 1 ? "var(--p1-color)" : "var(--p2-color)";
+            document.getElementById('pass-title').style.color = nextColor;
+        }
+
+        function startTurn() {
+            isTransitioning = false;
+            let screen = document.getElementById('battle-screen');
+            screen.className = `screen active ${currentPlayer === 1 ? 'p1-theme' : 'p2-theme'}`;
+            
+            document.getElementById('battle-title').innerText = currentPlayer === 1 ? "Red Cannon's Turn" : "Blue Cannon's Turn";
+            document.getElementById('battle-title').className = currentPlayer === 1 ? "p1-text" : "p2-text";
+            document.getElementById('game-status').innerText = "Awaiting orders...";
+            document.getElementById('game-status').style.color = "white";
+
+            renderBattleBoard();
+        }
+
+        // --- BATTLE LOGIC ---
+        function renderBattleBoard() {
+            const boardEl = document.getElementById('battle-board');
+            boardEl.innerHTML = '';
+            let opponent = currentPlayer === 1 ? 2 : 1;
+            let grid = grids[opponent];
+
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 10; c++) {
+                    let cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (grid[r][c] === 2) cell.classList.add('miss');
+                    if (grid[r][c] === 3) cell.classList.add('hit');
+                    
+                    // Click event to fire
+                    cell.onclick = (e) => handleShot(r, c, e);
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function handleShot(r, c, event) {
+            if (isTransitioning) return;
+            
+            // THE PRANK: We stop the regular shot from happening if they are trying to double/triple tap.
+            // The prank listener is on the container and handles the counting.
+            
+            let opponent = currentPlayer === 1 ? 2 : 1;
+            let grid = grids[opponent];
+
+            // Don't waste a turn on an already clicked spot (unless counting taps for cheat)
+            if (grid[r][c] === 2 || grid[r][c] === 3) return;
+
+            if (grid[r][c] === 1) {
+                // HIT!
+                grid[r][c] = 3;
+                document.getElementById('game-status').innerText = "Direct Hit! Fire Again!";
+                document.getElementById('game-status').style.color = "#43e97b";
+                renderBattleBoard();
+                checkWin();
+            } else if (grid[r][c] === 0) {
+                // MISS!
+                grid[r][c] = 2;
+                isTransitioning = true; // Block clicking
+                document.getElementById('game-status').innerText = "Miss! Switching sides...";
+                document.getElementById('game-status').style.color = "#ffaa00";
+                renderBattleBoard();
+                
+                setTimeout(() => {
+                    currentPlayer = opponent;
+                    showPassScreen();
+                }, 1500);
+            }
+        }
+
+        function checkWin() {
+            let opponent = currentPlayer === 1 ? 2 : 1;
+            let grid = grids[opponent];
+            let isWin = true;
+
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 10; c++) {
+                    if (grid[r][c] === 1) isWin = false; // Still ships left
+                }
+            }
+
+            if (isWin) {
+                switchScreen('game-over-screen');
+                let winnerName = currentPlayer === 1 ? "Red Player" : "Blue Player";
+                let color = currentPlayer === 1 ? "var(--p1-color)" : "var(--p2-color)";
+                document.getElementById('winner-title').innerText = `${winnerName} Wins!`;
+                document.getElementById('winner-title').style.color = color;
+                document.getElementById('winner-desc').innerText = "You sunk the entire enemy fleet!";
+            }
+        }
+
+        // --- SECRET PRANK LOGIC ---
+        // Listen for taps anywhere on the board container
+        document.getElementById('battle-board-container').addEventListener('click', (e) => {
+            if (isTransitioning) return; // Don't allow cheating during a transition
+
+            tapCount++;
+            clearTimeout(tapTimer);
+
+            if (tapCount >= 3) {
+                tapCount = 0;
+                activateCheat();
+                return;
+            }
+
+            // Reset taps after 0.5 seconds
+            tapTimer = setTimeout(() => {
+                tapCount = 0;
+            }, 500);
+        });
+
+        function activateCheat() {
+            let opponent = currentPlayer === 1 ? 2 : 1;
+            let grid = grids[opponent];
+            let hiddenShips =[];
+
+            // Find all remaining ships
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 10; c++) {
+                    if (grid[r][c] === 1) {
+                        hiddenShips.push({r, c});
+                    }
+                }
+            }
+//that boobless bitch!
+            if (hiddenShips.length > 0) {
+                // Pick a random hidden ship and destroy it
+                let target = hiddenShips[Math.floor(Math.random() * hiddenShips.length)];
+                grid[target.r][target.c] = 3; // Force Hit
+                
+                document.getElementById('game-status').innerText = "Direct Hit! Fire Again!";
+                document.getElementById('game-status').style.color = "#43e97b";
+                renderBattleBoard();
+                checkWin();
+            }
+        }
+
+        // Start game
+        init();
+    </script>
+</body>
+</html>
