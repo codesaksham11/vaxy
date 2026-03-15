@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slick App Grid</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --glass: rgba(255, 255, 255, 0.1);
+            --border: rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: var(--bg-gradient);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* The 4x5 Grid Container */
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 80px); /* 4 columns */
+            grid-template-rows: repeat(5, 100px);   /* 5 rows */
+            gap: 20px;
+            padding: 30px;
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            border-radius: 40px;
+            border: 1px solid var(--border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* App Item Styles */
+        .app-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .app-item:hover {
+            transform: scale(1.15);
+        }
+
+        .icon {
+            width: 65px;
+            height: 65px;
+            border-radius: 18px; /* High-end rounded corner */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 24px;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            margin-bottom: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Glossy overlay for slick look */
+        .icon::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background: linear-gradient(rgba(255,255,255,0.2), transparent);
+        }
+
+        .app-label {
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* Specific App Colors */
+        .app-a .icon { background: linear-gradient(135deg, #FF5F6D, #FFC371); }
+        .app-b .icon { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
+        .app-c .icon { background: linear-gradient(135deg, #11998e, #38ef7d); }
+
+        /* Empty slots for visual grid maintenance */
+        .empty-slot {
+            width: 65px;
+            height: 65px;
+            visibility: hidden;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-grid">
+        <!-- Row 1: Top Left to Right -->
+        <a href="a.html" class="app-item app-a">
+            <div class="icon">A</div>
+            <span class="app-label">Alpha</span>
+        </a>
+
+        <a href="b.html" class="app-item app-b">
+            <div class="icon">B</div>
+            <span class="app-label">Beta</span>
+        </a>
+
+        <a href="c.html" class="app-item app-c">
+            <div class="icon">C</div>
+            <span class="app-label">Gamma</span>
+        </a>
+
+        <!-- The rest of the 4x5 grid is empty -->
+        <div class="empty-slot"></div> <!-- Col 4 Row 1 -->
+        
+        <!-- Generate remaining 16 slots (4x4) to maintain the 4x5 layout shape -->
+        <script>
+            for(let i=0; i<16; i++) {
+                document.write('<div class="empty-slot"></div>');
+            }
+        </script>
+    </div>
+
+</body>
+</html>
